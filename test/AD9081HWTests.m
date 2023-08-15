@@ -1,7 +1,7 @@
 classdef AD9081HWTests < HardwareTests
     
     properties
-        uri = 'ip:analog';
+        uri = 'ip:localhost';
         author = 'ADI';
     end
     
@@ -48,22 +48,27 @@ classdef AD9081HWTests < HardwareTests
         function testAD9081RxWithTxDDS(testCase)
             % Test DDS output
             tx = adi.AD9081.Tx('uri',testCase.uri);
+            chanConfig = tx.GetDataPathConfiguration(true);
+            tx.MainNCOFrequencies = zeros(1,chanConfig);
             tx.DataSource = 'DDS';
+            tx.ChannelNCOGainScales = repmat(0.5,1,chanConfig);
+            tx.DDSScales = repmat(0.079407,chanConfig/2,chanConfig/2);
             toneFreq = 45e6;
             tx.DDSFrequencies = repmat(toneFreq,2,2);
+            tx.NCOEnables = [true, false, false, false];
             tx();
             pause(1);
             rx = adi.AD9081.Rx('uri',testCase.uri);
-            rx.EnabledChannels = 1;
+            rx.MainNCOFrequencies = zeros(1,chanConfig);
+            rx.EnabledChannels = [1];
             valid = false;
             for k=1:10
                 [out, valid] = rx();
             end
+
+            freqEst = meanfreq(double(real(out)),rx.get.SamplingRate());
             rx.release();
-            
-%             plot(real(out));
-%             testCase.estFrequency(out,rx.SamplingRate);
-            freqEst = meanfreq(double(real(out)),rx.SamplingRate);
+            tx.release();
 
             testCase.verifyTrue(valid);
             testCase.verifyGreaterThan(sum(abs(double(out))),0);
